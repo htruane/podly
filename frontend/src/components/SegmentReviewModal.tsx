@@ -383,6 +383,9 @@ export default function SegmentReviewModal({
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-mono text-gray-600">
                                 {formatTime(seg.start_time)} - {formatTime(seg.end_time)}
+                                <span className="text-gray-500 ml-1">
+                                  ({seg.start_time.toFixed(1)}s - {seg.end_time.toFixed(1)}s)
+                                </span>
                               </span>
                               {seg.label === 'ad' && (
                                 <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded font-medium">
