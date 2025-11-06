@@ -1,11 +1,11 @@
 import logging
 import os
 import threading
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import litellm
 from jinja2 import Template
-from sqlalchemy.orm import object_session
+from sqlalchemy.orm import Session, object_session
 
 from app.extensions import db
 from app.models import Post, ProcessingJob, TranscriptSegment
@@ -29,20 +29,20 @@ from shared.processing_paths import (
 logger = logging.getLogger("global_logger")
 
 
-def get_post_processed_audio_path(post: Post) -> Optional[ProcessingPaths]:
+def get_post_processed_audio_path(post: Post) -> ProcessingPaths:
     """
     Generate the processed audio path based on the post's unprocessed audio path.
-    Returns None if unprocessed_audio_path is not set.
+
+    Raises:
+        InvalidPostDataException: If unprocessed_audio_path or feed title is not set
     """
     unprocessed_path = post.unprocessed_audio_path
-    if not unprocessed_path or not isinstance(unprocessed_path, str):
-        logger.warning(f"Post {post.id} has no unprocessed_audio_path.")
-        return None
+    if not unprocessed_path:
+        raise InvalidPostDataException(f"Post {post.id} has no unprocessed_audio_path")
 
     title = post.feed.title
-    if not title or not isinstance(title, str):
-        logger.warning(f"Post {post.id} has no feed title.")
-        return None
+    if not title:
+        raise InvalidPostDataException(f"Post {post.id} has no feed title")
 
     return paths_from_unprocessed_path(unprocessed_path, title)
 
@@ -64,41 +64,26 @@ class PodcastProcessor:
         ad_classifier: Optional[AdClassifier] = None,
         audio_processor: Optional[AudioProcessor] = None,
         status_manager: Optional[ProcessingStatusManager] = None,
-        db_session: Optional[Any] = None,
+        db_session: Optional[Session] = None,
         downloader: Optional[PodcastDownloader] = None,
     ) -> None:
         super().__init__()
-        self.logger = logger or logging.getLogger("global_logger")
+        self.logger = logger if logger is not None else logging.getLogger("global_logger")
         self.output_dir = str(get_srv_root())
         self.config: Config = config
-        self.db_session = db_session or db.session
+        self.db_session = db_session if db_session is not None else db.session
 
-        # Initialize downloader
-        self.downloader = downloader or PodcastDownloader(logger=self.logger)
-
-        # Initialize status manager
-        self.status_manager = status_manager or ProcessingStatusManager(
+        self.downloader = downloader if downloader is not None else PodcastDownloader(logger=self.logger)
+        self.status_manager = status_manager if status_manager is not None else ProcessingStatusManager(
             self.db_session, self.logger
         )
 
         litellm.api_base = self.config.openai_base_url
         litellm.api_key = self.config.llm_api_key
 
-        # Initialize components with default implementations if not provided
-        if transcription_manager is None:
-            self.transcription_manager = TranscriptionManager(self.logger, config)
-        else:
-            self.transcription_manager = transcription_manager
-
-        if ad_classifier is None:
-            self.ad_classifier = AdClassifier(config)
-        else:
-            self.ad_classifier = ad_classifier
-
-        if audio_processor is None:
-            self.audio_processor = AudioProcessor(config=config, logger=self.logger)
-        else:
-            self.audio_processor = audio_processor
+        self.transcription_manager = transcription_manager if transcription_manager is not None else TranscriptionManager(self.logger, config)
+        self.ad_classifier = ad_classifier if ad_classifier is not None else AdClassifier(config)
+        self.audio_processor = audio_processor if audio_processor is not None else AudioProcessor(config=config, logger=self.logger)
 
     def process(
         self,
@@ -141,13 +126,6 @@ class PodcastProcessor:
             if not post.whitelisted:
                 raise ProcessorException(f"Post with GUID {post.guid} not whitelisted")
 
-            # Check if processed audio already exists (database or disk)
-            if self._check_existing_processed_audio(post):
-                self.status_manager.update_job_status(
-                    job, "completed", 4, "Processing complete", 100.0
-                )
-                return str(post.processed_audio_path)
-
             # Step 1: Download (if needed)
             self._handle_download_step(post, job)
             self._raise_if_cancelled(job, cancel_callback)
@@ -156,15 +134,12 @@ class PodcastProcessor:
             processed_audio_path = self._acquire_processing_lock(post, job)
 
             try:
-                if os.path.exists(processed_audio_path):
-                    self.logger.info(f"Audio already processed: {post}")
-                    # Update the database with the processed audio path
-                    post.processed_audio_path = processed_audio_path
-                    self.db_session.commit()
+                # Check if processed audio already exists after acquiring lock
+                if self._check_existing_processed_audio(post):
                     self.status_manager.update_job_status(
                         job, "completed", 4, "Processing complete", 100.0
                     )
-                    return processed_audio_path
+                    return str(post.processed_audio_path)
 
                 # Perform the main processing steps
                 self._perform_processing_steps(
@@ -175,28 +150,31 @@ class PodcastProcessor:
                 return processed_audio_path
             finally:
                 # Release lock using cached GUID without touching ORM state after potential rollback
-                try:
-                    if cached_lock_key is not None:
-                        lock = PodcastProcessor.locks.get(cached_lock_key)
-                        if lock is not None and lock.locked():
+                if cached_lock_key is not None:
+                    lock = PodcastProcessor.locks.get(cached_lock_key)
+                    if lock is not None and lock.locked():
+                        try:
                             lock.release()
-                except Exception:
-                    # Best-effort lock release; avoid masking original exceptions
-                    pass
+                        except Exception as e:
+                            self.logger.error(
+                                f"Failed to release lock for {cached_lock_key}: {e}",
+                                exc_info=True
+                            )
+                            raise
+
+        except ProcessingJobInProgressException as e:
+            self.status_manager.update_job_status(
+                job,
+                "failed",
+                job.current_step,
+                "Another processing job is already running for this episode",
+            )
+            raise
 
         except ProcessorException as e:
-            error_msg = str(e)
-            if "Processing job in progress" in error_msg:
-                self.status_manager.update_job_status(
-                    job,
-                    "failed",
-                    job.current_step,
-                    "Another processing job is already running for this episode",
-                )
-            else:
-                self.status_manager.update_job_status(
-                    job, "failed", job.current_step, error_msg
-                )
+            self.status_manager.update_job_status(
+                job, "failed", job.current_step, str(e)
+            )
             raise
 
         except Exception as e:
@@ -228,9 +206,6 @@ class PodcastProcessor:
         """
         # Get processing paths
         working_paths = get_post_processed_audio_path(post)
-        if working_paths is None:
-            raise ProcessorException("Processed audio path not found")
-
         processed_audio_path = str(working_paths.post_processed_audio_path)
 
         # Use post GUID as lock key instead of file path for better granularity
@@ -245,7 +220,7 @@ class PodcastProcessor:
                 locked = True
 
         if not locked and not PodcastProcessor.locks[lock_key].acquire(blocking=False):
-            raise ProcessorException("Processing job in progress")
+            raise ProcessingJobInProgressException("Processing job in progress")
 
         # Cancel existing jobs since we got the lock
         self.status_manager.cancel_existing_jobs(post.guid, job.id)
@@ -355,11 +330,10 @@ class PodcastProcessor:
                     f"Unprocessed audio already available at: {post.unprocessed_audio_path}"
                 )
                 return
-            self.logger.info(
-                f"Database path {post.unprocessed_audio_path} doesn't exist or is empty, resetting"
+            raise FileOperationException(
+                f"Database has unprocessed audio path {post.unprocessed_audio_path} "
+                f"but file doesn't exist or is empty. Data integrity issue for post {post.id}"
             )
-            post.unprocessed_audio_path = None
-            self.db_session.commit()
 
         # Compute a unique per-job expected path
         expected_unprocessed_path = get_job_unprocessed_path(
@@ -409,20 +383,19 @@ class PodcastProcessor:
         with open(prompt_template_path, "r") as f:
             return Template(f.read())
 
-    def remove_audio_files_and_reset_db(self, post_id: Optional[int]) -> None:
+    def remove_audio_files_and_reset_db(self, post_id: int) -> None:
         """
         Removes unprocessed/processed audio for the given post from disk,
         and resets the DB fields so the next run will re-download the files.
-        """
-        if post_id is None:
-            return
 
+        Raises:
+            InvalidPostDataException: If post_id is invalid or post doesn't exist
+        """
         post = Post.query.get(post_id)
         if not post:
-            self.logger.warning(
-                f"Could not find Post with ID {post_id} to remove files."
+            raise InvalidPostDataException(
+                f"Could not find Post with ID {post_id} to remove files"
             )
-            return
 
         if post.unprocessed_audio_path and os.path.isfile(post.unprocessed_audio_path):
             try:
@@ -434,6 +407,9 @@ class PodcastProcessor:
                 self.logger.error(
                     f"Failed to remove unprocessed file '{post.unprocessed_audio_path}': {e}"
                 )
+                raise FileOperationException(
+                    f"Failed to remove unprocessed file '{post.unprocessed_audio_path}'"
+                ) from e
 
         if post.processed_audio_path and os.path.isfile(post.processed_audio_path):
             try:
@@ -443,6 +419,9 @@ class PodcastProcessor:
                 self.logger.error(
                     f"Failed to remove processed file '{post.processed_audio_path}': {e}"
                 )
+                raise FileOperationException(
+                    f"Failed to remove processed file '{post.processed_audio_path}'"
+                ) from e
 
         post.unprocessed_audio_path = None
         post.processed_audio_path = None
@@ -466,11 +445,10 @@ class PodcastProcessor:
                     f"Processed audio already available at: {post.processed_audio_path}"
                 )
                 return True
-            self.logger.info(
-                f"Database path {post.processed_audio_path} doesn't exist or is empty, resetting"
+            raise FileOperationException(
+                f"Database has processed audio path {post.processed_audio_path} "
+                f"but file doesn't exist or is empty. Data integrity issue for post {post.id}"
             )
-            post.processed_audio_path = None
-            self.db_session.commit()
 
         # Check if file exists on disk at expected location
         safe_feed_title = sanitize_title(post.feed.title)
@@ -497,3 +475,15 @@ class PodcastProcessor:
 
 class ProcessorException(Exception):
     """Exception raised for podcast processing errors."""
+
+
+class ProcessingJobInProgressException(ProcessorException):
+    """Exception raised when a processing job is already in progress for a post."""
+
+
+class InvalidPostDataException(ProcessorException):
+    """Exception raised when post data is invalid or missing required fields."""
+
+
+class FileOperationException(ProcessorException):
+    """Exception raised when file operations fail."""
