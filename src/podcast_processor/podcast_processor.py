@@ -258,7 +258,7 @@ class PodcastProcessor:
         post: Post,
         job: ProcessingJob,
         processed_audio_path: str,
-        cancel_callback: Optional[Callable[[], bool]] = None,
+        cancel_callback: Optional[Callable[[], Bool]] = None,
     ) -> None:
         """
         Perform the main processing steps: transcription, ad classification, and audio processing.
@@ -279,9 +279,17 @@ class PodcastProcessor:
         self._classify_ad_segments(post, job, transcript_segments)
         self._raise_if_cancelled(job, cancel_callback)
 
-        # Step 4: Process audio (remove ad segments)
+        # Step 4: Wait for segment approval if not already approved
+        if not job.segments_approved:
+            self.status_manager.update_job_status(
+                job, "pending_review", 4, "Awaiting segment review", 80.0
+            )
+            self.logger.info(f"Processing paused for review: {post.guid}")
+            return
+
+        # Step 5: Process audio (remove ad segments)
         self.status_manager.update_job_status(
-            job, "running", 4, "Processing audio", 90.0
+            job, "running", 5, "Processing audio", 90.0
         )
         self.audio_processor.process_audio(post, processed_audio_path)
 
@@ -291,7 +299,7 @@ class PodcastProcessor:
 
         # Mark job complete
         self.status_manager.update_job_status(
-            job, "completed", 4, "Processing complete", 100.0
+            job, "completed", 5, "Processing complete", 100.0
         )
 
     def _raise_if_cancelled(
