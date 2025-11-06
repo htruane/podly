@@ -115,19 +115,25 @@ See [AGENTS.md](AGENTS.md) for original requirements.
 - [frontend/src/components/SegmentReviewModal.tsx](frontend/src/components/SegmentReviewModal.tsx) - Lines 1-6 (imports), 11 (audioUrl prop), 35 (state), 131-162 (waveform toggle and display)
 - [frontend/src/components/FeedDetail.tsx](frontend/src/components/FeedDetail.tsx) - Line 665 (pass audioUrl to modal)
 
-## Phase 4: Testing & Polish ⏳ PENDING
+## Phase 4: Testing & Polish ✅ MOSTLY COMPLETED
 
 ### Testing
-- [ ] Unit tests for `SegmentManager` methods
+- [x] Unit tests for `SegmentManager` methods
 - [ ] Integration tests for review workflow
-- [ ] Test segment merging edge cases
+- [x] Test segment merging edge cases
 - [ ] Test with various podcast types
 
 ### Polish
 - [ ] Mobile-friendly review UI
-- [ ] Loading states and error handling
-- [ ] Keyboard shortcuts for review modal
+- [x] Loading states and error handling
+- [x] Keyboard shortcuts for review modal
 - [ ] Preview audio playback before approval
+
+**Files Created:**
+- [src/tests/test_segment_manager.py](src/tests/test_segment_manager.py) - Comprehensive unit tests for SegmentManager
+
+**Files Modified:**
+- [frontend/src/components/SegmentReviewModal.tsx](frontend/src/components/SegmentReviewModal.tsx) - Added error handling, validation, keyboard shortcuts, and retry functionality
 
 ## Architecture Benefits
 
