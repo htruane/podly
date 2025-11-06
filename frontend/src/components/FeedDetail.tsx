@@ -662,7 +662,7 @@ export default function FeedDetail({ feed, onClose, onFeedDeleted }: FeedDetailP
         <SegmentReviewModal
           episodeGuid={reviewEpisode.guid}
           episodeTitle={reviewEpisode.title}
-          audioUrl={reviewEpisode.download_url}
+          audioUrl={`/api/posts/${reviewEpisode.guid}/audio/original`}
           onClose={() => setReviewEpisode(null)}
           onApproved={() => {
             queryClient.invalidateQueries({ queryKey: ['episodes', feed.id] });

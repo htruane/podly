@@ -562,6 +562,56 @@ def api_get_post_audio(p_guid: str) -> ResponseReturnValue:
         )
 
 
+@post_bp.route("/api/posts/<string:p_guid>/audio/original", methods=["GET"])
+def api_get_original_post_audio(p_guid: str) -> ResponseReturnValue:
+    """API endpoint to serve original audio files for streaming (e.g., waveform visualization)."""
+    logger.info(f"API request for original audio file with GUID: {p_guid}")
+
+    post = Post.query.filter_by(guid=p_guid).first()
+    if post is None:
+        logger.warning(f"Post with GUID: {p_guid} not found")
+        return flask.make_response(
+            jsonify({"error": "Post not found", "error_code": "NOT_FOUND"}), 404
+        )
+
+    if not post.whitelisted:
+        logger.warning(f"Post: {post.title} is not whitelisted")
+        return flask.make_response(
+            jsonify({"error": "Post not whitelisted", "error_code": "NOT_WHITELISTED"}),
+            403,
+        )
+
+    if not post.unprocessed_audio_path or not Path(post.unprocessed_audio_path).exists():
+        logger.warning(f"Original audio not found for post: {post.id}")
+        return flask.make_response(
+            jsonify(
+                {
+                    "error": "Original audio not available",
+                    "error_code": "AUDIO_NOT_FOUND",
+                    "message": "Original audio file not found",
+                }
+            ),
+            404,
+        )
+
+    try:
+        response = send_file(
+            path_or_file=Path(post.unprocessed_audio_path).resolve(),
+            mimetype="audio/mpeg",
+            as_attachment=False,
+        )
+        response.headers["Accept-Ranges"] = "bytes"
+        return response
+    except Exception as e:  # pylint: disable=broad-except
+        logger.error(f"Error serving original audio file for {p_guid}: {e}")
+        return flask.make_response(
+            jsonify(
+                {"error": "Error serving audio file", "error_code": "SERVER_ERROR"}
+            ),
+            500,
+        )
+
+
 @post_bp.route("/api/posts/<string:p_guid>/download", methods=["GET"])
 def api_download_post(p_guid: str) -> flask.Response:
     """API endpoint to download processed audio files."""
