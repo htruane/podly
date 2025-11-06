@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import { segmentsApi } from '../services/api';
@@ -34,9 +34,10 @@ export default function SegmentReviewModal({
   const [mergedRanges, setMergedRanges] = useState<MergedSegmentRange[]>([]);
   const [showWaveform, setShowWaveform] = useState(false);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['identified-segments', episodeGuid],
     queryFn: () => segmentsApi.getIdentifiedSegments(episodeGuid),
+    retry: 2,
   });
 
   useEffect(() => {
@@ -74,7 +75,8 @@ export default function SegmentReviewModal({
     },
     onError: (err) => {
       console.error('Failed to approve segments', err);
-      toast.error('Failed to approve segments');
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(`Failed to approve segments: ${errorMessage}`);
     }
   });
 
@@ -85,9 +87,28 @@ export default function SegmentReviewModal({
   };
 
   const updateSegmentTime = (segmentId: number, field: 'startTime' | 'endTime', value: number) => {
-    setSegmentStates(prev => prev.map(seg =>
-      seg.id === segmentId ? { ...seg, [field]: value, isManuallyEdited: true } : seg
-    ));
+    // Validate that value is positive
+    if (value < 0) {
+      toast.error('Time cannot be negative');
+      return;
+    }
+
+    setSegmentStates(prev => prev.map(seg => {
+      if (seg.id === segmentId) {
+        const updated = { ...seg, [field]: value, isManuallyEdited: true };
+        // Validate that start time is before end time
+        if (field === 'startTime' && value >= seg.endTime) {
+          toast.error('Start time must be before end time');
+          return seg;
+        }
+        if (field === 'endTime' && value <= seg.startTime) {
+          toast.error('End time must be after start time');
+          return seg;
+        }
+        return updated;
+      }
+      return seg;
+    }));
   };
 
   const formatTime = (seconds: number): string => {
@@ -101,12 +122,39 @@ export default function SegmentReviewModal({
     return `${duration.toFixed(1)}s`;
   };
 
-  const handleApprove = () => {
-    approveMutation.mutate();
-  };
-
   const approvedCount = segmentStates.filter(seg => seg.approved).length;
   const totalCount = segmentStates.length;
+
+  const handleApprove = useCallback(() => {
+    if (approveMutation.isPending) return;
+
+    if (approvedCount === 0) {
+      const confirmed = window.confirm(
+        'No segments are approved for removal. This will continue processing without removing any ads. Continue?'
+      );
+      if (!confirmed) return;
+    }
+
+    approveMutation.mutate();
+  }, [approveMutation, approvedCount]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Escape to close
+      if (e.key === 'Escape' && !approveMutation.isPending) {
+        onClose();
+      }
+      // Ctrl/Cmd + Enter to approve
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !approveMutation.isPending) {
+        e.preventDefault();
+        handleApprove();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleApprove, onClose, approveMutation.isPending]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -170,7 +218,21 @@ export default function SegmentReviewModal({
             </div>
           ) : error ? (
             <div className="text-center py-12">
-              <p className="text-red-600">Failed to load segments</p>
+              <div className="max-w-md mx-auto">
+                <svg className="w-12 h-12 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-red-600 font-medium mb-2">Failed to load segments</p>
+                <p className="text-sm text-gray-600 mb-4">
+                  {error instanceof Error ? error.message : 'An unknown error occurred'}
+                </p>
+                <button
+                  onClick={() => refetch()}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                >
+                  Retry
+                </button>
+              </div>
             </div>
           ) : segmentStates.length === 0 ? (
             <div className="text-center py-12">
@@ -289,8 +351,14 @@ export default function SegmentReviewModal({
         {/* Footer */}
         <div className="border-t p-6 bg-gray-50">
           <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              {approvedCount} of {totalCount} segments will be removed
+            <div>
+              <div className="text-sm text-gray-600 mb-1">
+                {approvedCount} of {totalCount} segments will be removed
+              </div>
+              <div className="text-xs text-gray-500">
+                <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded">Esc</kbd> to close,{' '}
+                <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded">Ctrl+Enter</kbd> to approve
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <button
