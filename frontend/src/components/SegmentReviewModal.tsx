@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import { segmentsApi } from '../services/api';
 import WaveformTimeline from './WaveformTimeline';
-import type { SegmentData, IdentifiedSegment, MergedSegmentRange, SegmentOverride } from '../types';
+import type { MergedSegmentRange, SegmentOverride } from '../types';
 
 interface SegmentReviewModalProps {
   episodeGuid: string;
