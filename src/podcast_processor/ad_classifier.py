@@ -8,6 +8,7 @@ from litellm.exceptions import InternalServerError
 from litellm.types.utils import Choices
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Query, scoped_session
 
 from app.extensions import db
 from app.models import Identification, ModelCall, Post, TranscriptSegment
@@ -57,9 +58,9 @@ class AdClassifier:
         self,
         config: Config,
         logger: Optional[logging.Logger] = None,
-        model_call_query: Optional[Any] = None,
-        identification_query: Optional[Any] = None,
-        db_session: Optional[Any] = None,
+        model_call_query: Optional[Query[ModelCall]] = None,
+        identification_query: Optional[Query[Identification]] = None,
+        db_session: Optional[scoped_session] = None,
     ):
         self.config = config
         self.logger = logger or logging.getLogger("global_logger")
@@ -140,25 +141,19 @@ class AdClassifier:
         try:
             current_index = 0
             next_overlap_segments: List[TranscriptSegment] = []
-            max_iterations = (
-                total_segments + 10
-            )  # Safety limit to prevent infinite loops
-            iteration_count = 0
-            while current_index < total_segments and iteration_count < max_iterations:
+            while current_index < total_segments:
                 consumed_segments, next_overlap_segments = self._step(
                     classify_params,
                     next_overlap_segments,
                     current_index,
                     transcript_segments,
                 )
-                current_index += consumed_segments
-                iteration_count += 1
                 if consumed_segments == 0:
-                    self.logger.error(
-                        f"No progress made in iteration {iteration_count} for post {post.id}. "
-                        "Breaking to avoid infinite loop."
+                    raise ClassifyException(
+                        f"No progress made in classification step for post {post.id} "
+                        f"at index {current_index}. This indicates a bug in chunking logic."
                     )
-                    break
+                current_index += consumed_segments
         except ClassifyException as e:
             self.logger.error(f"Classification failed for post {post.id}: {e}")
             return
@@ -257,10 +252,6 @@ class AdClassifier:
             user_prompt_str=user_prompt_str,
         )
 
-        if not model_call:
-            self.logger.error("ModelCall object is unexpectedly None. Skipping chunk.")
-            return []
-
         if self._should_call_llm(model_call):
             self._perform_llm_call(
                 model_call=model_call,
@@ -272,10 +263,10 @@ class AdClassifier:
                 model_call=model_call,
                 current_chunk_db_segments=chunk_segments,
             )
-        if model_call.status != "success":
-            self.logger.info(
-                f"LLM call for ModelCall {model_call.id} was not successful (status: {model_call.status}). No identifications to process."
-            )
+
+        self.logger.info(
+            f"LLM call for ModelCall {model_call.id} was not successful (status: {model_call.status}). No identifications to process."
+        )
         return []
 
     def _build_chunk_payload(
@@ -291,7 +282,9 @@ class AdClassifier:
     ) -> Tuple[List[TranscriptSegment], str, int, bool]:
         """Construct chunk data while enforcing overlap and token constraints."""
         if not remaining_segments:
-            return ([], "", 0, False)
+            raise ClassifyException(
+                f"_build_chunk_payload called with empty remaining_segments for post {post.id}"
+            )
 
         capped_overlap = self._apply_overlap_cap(overlap_segments)
         new_segment_count = min(max_new_segments, len(remaining_segments))
@@ -487,21 +480,18 @@ class AdClassifier:
         if self.config.llm_max_input_tokens_per_call is None:
             return True
 
+        if not self.rate_limiter:
+            raise RuntimeError(
+                "Token limit validation requires rate_limiter to be configured"
+            )
+
         # Create messages as they would be sent to the API
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt_str},
         ]
 
-        # Count tokens (reuse the existing token counting logic from rate limiter)
-        if self.rate_limiter:
-            token_count = self.rate_limiter.count_tokens(
-                messages, self.config.llm_model
-            )
-        else:
-            # Fallback token estimation if no rate limiter
-            total_chars = len(system_prompt) + len(user_prompt_str)
-            token_count = total_chars // 4  # ~4 characters per token
+        token_count = self.rate_limiter.count_tokens(messages, self.config.llm_model)
 
         is_valid = token_count <= self.config.llm_max_input_tokens_per_call
 
@@ -612,7 +602,7 @@ class AdClassifier:
         first_seq_num: int,
         last_seq_num: int,
         user_prompt_str: str,
-    ) -> Optional[ModelCall]:
+    ) -> ModelCall:
         """Get an existing ModelCall or create a new one."""
         model = self.config.llm_model
         model_call: Optional[ModelCall] = (
@@ -665,7 +655,10 @@ class AdClassifier:
                     .first()
                 )
                 if not model_call:
-                    raise
+                    raise RuntimeError(
+                        f"Failed to create or retrieve ModelCall for post {post.id}, "
+                        f"segments {first_seq_num}-{last_seq_num} after IntegrityError"
+                    )
                 # If found, update prompt/status to pending for retry
                 model_call.status = "pending"
                 model_call.prompt = user_prompt_str
