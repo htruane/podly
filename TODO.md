@@ -103,6 +103,11 @@ Download → Transcribe → Classify → Review → Edit Audio → Done
 2. **Testing**: Test with various podcast types in production
 3. **Polish**: Mobile-responsive review UI
 4. **Enhancement**: Preview audio playback before approval
+5. **Bug**: Transcript segments chunked too short for LLM ad detection
+   - Current chunking strategy may be creating segments that are too short
+   - LLM needs sufficient context to accurately identify advertisements
+   - Need to investigate optimal chunk size and overlap for ad detection
+   - May need to adjust transcription segmentation or classification windowing
 
 ## Technical Considerations
 
