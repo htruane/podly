@@ -1,11 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-hot-toast';
-import type { Feed, Episode } from '../types';
-import { feedsApi } from '../services/api';
+import type { Feed, Episode, Job } from '../types';
+import { feedsApi, jobsApi } from '../services/api';
 import DownloadButton from './DownloadButton';
 import PlayButton from './PlayButton';
 import ProcessingStatsButton from './ProcessingStatsButton';
+import SegmentReviewModal from './SegmentReviewModal';
 import { useAuth } from '../contexts/AuthContext';
 
 interface FeedDetailProps {
@@ -22,6 +23,7 @@ export default function FeedDetail({ feed, onClose, onFeedDeleted }: FeedDetailP
   const [showStickyHeader, setShowStickyHeader] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [reviewEpisode, setReviewEpisode] = useState<Episode | null>(null);
   const queryClient = useQueryClient();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const feedHeaderRef = useRef<HTMLDivElement>(null);
@@ -29,6 +31,12 @@ export default function FeedDetail({ feed, onClose, onFeedDeleted }: FeedDetailP
   const { data: episodes, isLoading, error } = useQuery({
     queryKey: ['episodes', feed.id],
     queryFn: () => feedsApi.getFeedPosts(feed.id),
+  });
+
+  const { data: activeJobs = [] } = useQuery({
+    queryKey: ['active-jobs'],
+    queryFn: () => jobsApi.getActiveJobs(100),
+    refetchInterval: 5000,
   });
 
   const whitelistMutation = useMutation({
@@ -115,6 +123,12 @@ export default function FeedDetail({ feed, onClose, onFeedDeleted }: FeedDetailP
     if (confirm(`Are you sure you want to delete "${feed.title}"? This action cannot be undone.`)) {
       deleteFeedMutation.mutate();
     }
+  };
+
+  const getPendingReviewJob = (episodeGuid: string): Job | null => {
+    return activeJobs.find(
+      job => job.post_guid === episodeGuid && job.status === 'pending_review'
+    ) || null;
   };
 
   const sortedEpisodes = episodes ? [...episodes].sort((a, b) => {
@@ -611,6 +625,18 @@ export default function FeedDetail({ feed, onClose, onFeedDeleted }: FeedDetailP
                             episodeGuid={episode.guid}
                             hasProcessedAudio={episode.has_processed_audio}
                           />
+
+                          {getPendingReviewJob(episode.guid) && (
+                            <button
+                              onClick={() => setReviewEpisode(episode)}
+                              className="px-3 py-1 text-xs rounded font-medium transition-colors bg-orange-100 text-orange-800 border border-orange-300 hover:bg-orange-200 hover:border-orange-400 flex items-center gap-1"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                              </svg>
+                              Review Segments
+                            </button>
+                          )}
                         </div>
 
                         {/* Right side: Play button */}
@@ -631,6 +657,19 @@ export default function FeedDetail({ feed, onClose, onFeedDeleted }: FeedDetailP
           )}
         </div>
       </div>
+
+      {reviewEpisode && (
+        <SegmentReviewModal
+          episodeGuid={reviewEpisode.guid}
+          episodeTitle={reviewEpisode.title}
+          audioUrl={`/api/posts/${reviewEpisode.guid}/audio/original`}
+          onClose={() => setReviewEpisode(null)}
+          onApproved={() => {
+            queryClient.invalidateQueries({ queryKey: ['episodes', feed.id] });
+            queryClient.invalidateQueries({ queryKey: ['active-jobs'] });
+          }}
+        />
+      )}
     </div>
   );
 }

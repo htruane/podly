@@ -196,6 +196,21 @@ class JobManager:
                 "job_id": job.id,
             }
 
+        # If job is pending_review with segments_approved, resume from there
+        if job.status == "pending_review" and job.segments_approved:
+            self._status_manager.update_job_status(
+                job,
+                "pending",
+                job.step,
+                f"Resuming from segment review (priority={priority})",
+                job.progress_percentage,
+            )
+            return {
+                "status": "started",
+                "message": "Job resumed after segment approval",
+                "job_id": job.id,
+            }
+
         self._status_manager.update_job_status(
             job,
             "pending",

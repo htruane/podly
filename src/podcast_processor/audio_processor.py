@@ -2,7 +2,7 @@ import logging
 from typing import Any, List, Optional, Tuple
 
 from app.extensions import db
-from app.models import Identification, ModelCall, Post, TranscriptSegment
+from app.models import Identification, ModelCall, Post, SegmentOverride, TranscriptSegment
 from podcast_processor.audio import clip_segments_with_fade, get_audio_duration_ms
 from shared.config import Config
 
@@ -31,6 +31,7 @@ class AudioProcessor:
     def get_ad_segments(self, post: Post) -> List[Tuple[float, float]]:
         """
         Retrieves ad segments from the database for a given post.
+        Checks for user overrides first, falls back to LLM identifications.
 
         Args:
             post: The Post object to retrieve ad segments for
@@ -39,6 +40,26 @@ class AudioProcessor:
             A list of tuples containing start and end times (in seconds) of ad segments
         """
         self.logger.info(f"Retrieving ad segments from database for post {post.id}.")
+
+        # Check for user-approved segment overrides first
+        segment_overrides = SegmentOverride.query.filter_by(
+            post_id=post.id,
+            user_approved=True
+        ).all()
+
+        if segment_overrides:
+            self.logger.info(
+                f"Using {len(segment_overrides)} user-approved segment overrides for post {post.id}."
+            )
+            ad_segments_times = [
+                (override.start_time, override.end_time)
+                for override in segment_overrides
+            ]
+            ad_segments_times.sort(key=lambda x: x[0])
+            return ad_segments_times
+
+        # Fall back to LLM identifications
+        self.logger.info(f"No overrides found, using LLM identifications for post {post.id}.")
 
         ad_identifications = (
             self.identification_query.join(

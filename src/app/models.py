@@ -216,6 +216,21 @@ class Identification(db.Model):  # type: ignore[name-defined, misc]
         return f"<Identification {self.id} TS:{self.transcript_segment_id} MC:{self.model_call_id} L:{self.label} C:{confidence_str}>"
 
 
+class SegmentOverride(db.Model):  # type: ignore[name-defined, misc]
+    __tablename__ = "segment_override"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    post_id = db.Column(db.Integer, db.ForeignKey("post.id"), nullable=False)
+    start_time = db.Column(db.Float, nullable=False)
+    end_time = db.Column(db.Float, nullable=False)
+    user_approved = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    post = db.relationship("Post", backref=db.backref("segment_overrides", lazy="dynamic"))
+
+    def __repr__(self) -> str:
+        return f"<SegmentOverride {self.id} Post:{self.post_id} Time:{self.start_time:.1f}-{self.end_time:.1f} Approved:{self.user_approved}>"
+
+
 class JobsManagerRun(db.Model):  # type: ignore[name-defined, misc]
     __tablename__ = "jobs_manager_run"
 
@@ -258,16 +273,17 @@ class ProcessingJob(db.Model):  # type: ignore[name-defined, misc]
     post_guid = db.Column(db.String(255), nullable=False, index=True)
     status = db.Column(
         db.String(50), nullable=False
-    )  # pending, running, completed, failed, cancelled, skipped
-    current_step = db.Column(db.Integer, default=0)  # 0-4 (0=not started, 4=completed)
+    )  # pending, running, completed, failed, cancelled, skipped, pending_review
+    current_step = db.Column(db.Integer, default=0)  # 0-5 (0=not started, 5=completed)
     step_name = db.Column(db.String(100))
-    total_steps = db.Column(db.Integer, default=4)
+    total_steps = db.Column(db.Integer, default=5)
     progress_percentage = db.Column(db.Float, default=0.0)
     started_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
     error_message = db.Column(db.Text)
     scheduler_job_id = db.Column(db.String(255))  # APScheduler job ID
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    segments_approved = db.Column(db.Boolean, default=False, nullable=False)
 
     # Relationships
     post = db.relationship(

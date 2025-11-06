@@ -9,6 +9,8 @@ import type {
   WhisperConfig,
   PodcastSearchResult,
   ConfigResponse,
+  SegmentData,
+  SegmentOverride,
 } from '../types';
 
 const API_BASE_URL = '';
@@ -342,6 +344,33 @@ export const feedsApi = {
 
   getEpisodeOriginalDownloadUrl: (guid: string): string => {
     return feedsApi.getPostOriginalDownloadUrl(guid);
+  },
+};
+
+export const segmentsApi = {
+  getIdentifiedSegments: async (guid: string): Promise<SegmentData> => {
+    const response = await api.get(`/api/posts/${guid}/identified-segments`);
+    return response.data;
+  },
+
+  approveSegments: async (
+    guid: string,
+    segments: SegmentOverride[]
+  ): Promise<{ message: string; approved_count?: number }> => {
+    const response = await api.post(`/api/posts/${guid}/approve-segments`, {
+      segments,
+    });
+    return response.data;
+  },
+
+  overrideSegments: async (
+    guid: string,
+    segments: SegmentOverride[]
+  ): Promise<{ message: string; segment_count: number }> => {
+    const response = await api.post(`/api/posts/${guid}/override-segments`, {
+      segments,
+    });
+    return response.data;
   },
 };
 

@@ -28,7 +28,7 @@ export interface Job {
   post_guid: string;
   post_title: string | null;
   feed_title: string | null;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'skipped' | string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'skipped' | 'pending_review' | string;
   priority: number;
   step: number;
   step_name: string | null;
@@ -38,6 +38,7 @@ export interface Job {
   started_at: string | null;
   completed_at: string | null;
   error_message: string | null;
+  segments_approved: boolean;
 }
 
 export interface JobManagerRun {
@@ -159,4 +160,42 @@ export interface AuthUser {
 export interface ManagedUser extends AuthUser {
   created_at: string;
   updated_at: string;
+}
+
+export interface IdentifiedSegment {
+  id: number;
+  start_time: number;
+  end_time: number;
+  text: string;
+  label: 'ad' | 'content';
+  confidence: number;
+  sequence_num: number;
+}
+
+export interface MergedSegmentRange {
+  start_time: number;
+  end_time: number;
+  segment_ids: number[];
+}
+
+export interface TranscriptSegment {
+  id: number;
+  sequence_num: number;
+  start_time: number;
+  end_time: number;
+  text: string;
+  label: 'ad' | 'content' | 'unknown';
+  confidence: number;
+}
+
+export interface SegmentData {
+  segments: IdentifiedSegment[];
+  merged_ranges: MergedSegmentRange[];
+  transcript: TranscriptSegment[];
+}
+
+export interface SegmentOverride {
+  start_time: number;
+  end_time: number;
+  approved: boolean;
 }
