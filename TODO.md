@@ -108,6 +108,12 @@ Download → Transcribe → Classify → Review → Edit Audio → Done
    - LLM needs sufficient context to accurately identify advertisements
    - Need to investigate optimal chunk size and overlap for ad detection
    - May need to adjust transcription segmentation or classification windowing
+6. **Bug**: LiteLLM model mapping error for glm-4.5-air
+   - Error: "This model isn't mapped yet" for glm-4.5-air model
+   - LiteLLM cannot calculate costs for this model
+   - Need to either add model to litellm model_prices_and_context_window.json
+   - Or configure custom pricing in application config
+   - See: [LiteLLM model pricing](https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json)
 
 ## Technical Considerations
 
