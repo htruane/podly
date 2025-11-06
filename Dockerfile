@@ -44,7 +44,7 @@ RUN if [ "${USE_GPU_NVIDIA}" = "true" ]; then \
     elif [ "${USE_GPU_AMD}" = "true" ]; then \
         uv pip install --system --no-cache torch --index-url https://download.pytorch.org/whl/rocm${ROCM_VERSION}; \
     else \
-        uv pip install --system --no-cache torch --index-url https://download.pytorch.org/whl/cpu; \
+        uv pip install --system --no-cache --pre torch torchaudio --extra-index-url https://download.pytorch.org/whl/nightly/cpu; \
     fi;
 
 COPY src/ ./src/

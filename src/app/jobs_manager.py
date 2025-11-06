@@ -221,8 +221,9 @@ class JobsManager:
 
     def list_active_jobs(self, limit: int = 100) -> List[Dict[str, Any]]:
         with scheduler.app.app_context():
-            # Derive a simple priority from status: running > pending
+            # Derive a simple priority from status: pending_review > running > pending
             priority_order = case(
+                (ProcessingJob.status == "pending_review", 3),
                 (ProcessingJob.status == "running", 2),
                 (ProcessingJob.status == "pending", 1),
                 else_=0,
@@ -231,7 +232,7 @@ class JobsManager:
             rows = (
                 _db.session.query(ProcessingJob, Post, priority_order)
                 .outerjoin(Post, ProcessingJob.post_guid == Post.guid)
-                .filter(ProcessingJob.status.in_(["pending", "running"]))
+                .filter(ProcessingJob.status.in_(["pending", "running", "pending_review"]))
                 .order_by(priority_order.desc(), ProcessingJob.created_at.desc())
                 .limit(limit)
                 .all()
@@ -261,6 +262,7 @@ class JobsManager:
                             job.completed_at.isoformat() if job.completed_at else None
                         ),
                         "error_message": job.error_message,
+                        "segments_approved": job.segments_approved,
                     }
                 )
 
@@ -307,6 +309,7 @@ class JobsManager:
                             job.completed_at.isoformat() if job.completed_at else None
                         ),
                         "error_message": job.error_message,
+                        "segments_approved": job.segments_approved,
                     }
                 )
 

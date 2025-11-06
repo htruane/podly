@@ -1,7 +1,7 @@
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, scoped_session
 
 from app.models import (
     Identification,
@@ -18,22 +18,25 @@ class SegmentManager:
     Manages segment identification, merging, and user overrides for ad removal.
     """
 
-    def __init__(self, db_session: Session, config: Optional[object] = None):
+    def __init__(
+        self, db_session: Union[Session, scoped_session], config: Optional[object] = None
+    ):
         self.db_session = db_session
         self.config = config
 
     def get_identified_segments(self, post: Post) -> Dict:
         """
-        Get all identified ad segments for a post, including merged ranges.
+        Get all identified ad segments for a post, including merged ranges and full transcript.
 
         Args:
             post: The Post object to get segments for
 
         Returns:
-            Dictionary with segments and merged ranges
+            Dictionary with ad segments, merged ranges, and full transcript
         """
         ad_segments = self._get_ad_segments_from_db(post)
         merged_ranges = self._merge_contiguous_segments(ad_segments)
+        all_transcript = self._get_all_transcript_segments(post)
 
         segments_data = []
         for segment in ad_segments:
@@ -50,6 +53,7 @@ class SegmentManager:
         return {
             "segments": segments_data,
             "merged_ranges": merged_ranges,
+            "transcript": all_transcript,
         }
 
     def _get_ad_segments_from_db(self, post: Post) -> List[Dict]:
@@ -89,6 +93,40 @@ class SegmentManager:
             })
 
         return segments
+
+    def _get_all_transcript_segments(self, post: Post) -> List[Dict]:
+        """
+        Get all transcript segments with their labels.
+
+        Returns:
+            List of all transcript segments with labels
+        """
+        transcript_segments = (
+            TranscriptSegment.query
+            .filter(TranscriptSegment.post_id == post.id)
+            .order_by(TranscriptSegment.sequence_num)
+            .all()
+        )
+
+        result = []
+        for segment in transcript_segments:
+            identification = (
+                Identification.query
+                .filter(Identification.transcript_segment_id == segment.id)
+                .first()
+            )
+
+            result.append({
+                "id": segment.id,
+                "sequence_num": segment.sequence_num,
+                "start_time": segment.start_time,
+                "end_time": segment.end_time,
+                "text": segment.text,
+                "label": identification.label if identification else "unknown",
+                "confidence": identification.confidence if identification else 0.0,
+            })
+
+        return result
 
     def _merge_contiguous_segments(
         self,

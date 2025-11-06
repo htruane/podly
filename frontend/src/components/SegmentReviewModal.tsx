@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import { segmentsApi } from '../services/api';
 import WaveformTimeline from './WaveformTimeline';
-import type { MergedSegmentRange, SegmentOverride } from '../types';
+import type { MergedSegmentRange, SegmentOverride, TranscriptSegment } from '../types';
 
 interface SegmentReviewModalProps {
   episodeGuid: string;
@@ -33,6 +33,12 @@ export default function SegmentReviewModal({
   const [segmentStates, setSegmentStates] = useState<SegmentState[]>([]);
   const [mergedRanges, setMergedRanges] = useState<MergedSegmentRange[]>([]);
   const [showWaveform, setShowWaveform] = useState(false);
+  const [showAddSegment, setShowAddSegment] = useState(false);
+  const [newSegmentStart, setNewSegmentStart] = useState<string>('');
+  const [newSegmentEnd, setNewSegmentEnd] = useState<string>('');
+  const [nextManualId, setNextManualId] = useState(-1);
+  const [showTranscript, setShowTranscript] = useState(false);
+  const [transcript, setTranscript] = useState<TranscriptSegment[]>([]);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['identified-segments', episodeGuid],
@@ -52,8 +58,47 @@ export default function SegmentReviewModal({
       }));
       setSegmentStates(initialStates);
       setMergedRanges(data.merged_ranges);
+      setTranscript(data.transcript || []);
     }
   }, [data]);
+
+  useEffect(() => {
+    const approvedSegments = segmentStates.filter(seg => seg.approved);
+    if (approvedSegments.length === 0) {
+      setMergedRanges([]);
+      return;
+    }
+
+    const sorted = [...approvedSegments].sort((a, b) => a.startTime - b.startTime);
+    const merged: MergedSegmentRange[] = [];
+    let currentRange: MergedSegmentRange | null = null;
+
+    for (const seg of sorted) {
+      if (!currentRange) {
+        currentRange = {
+          start_time: seg.startTime,
+          end_time: seg.endTime,
+          segment_ids: [seg.id],
+        };
+      } else if (seg.startTime <= currentRange.end_time + 1.0) {
+        currentRange.end_time = Math.max(currentRange.end_time, seg.endTime);
+        currentRange.segment_ids.push(seg.id);
+      } else {
+        merged.push(currentRange);
+        currentRange = {
+          start_time: seg.startTime,
+          end_time: seg.endTime,
+          segment_ids: [seg.id],
+        };
+      }
+    }
+
+    if (currentRange) {
+      merged.push(currentRange);
+    }
+
+    setMergedRanges(merged);
+  }, [segmentStates]);
 
   const approveMutation = useMutation({
     mutationFn: async () => {
@@ -120,6 +165,47 @@ export default function SegmentReviewModal({
   const formatDuration = (startTime: number, endTime: number): string => {
     const duration = endTime - startTime;
     return `${duration.toFixed(1)}s`;
+  };
+
+  const addManualSegment = () => {
+    const startTime = parseFloat(newSegmentStart);
+    const endTime = parseFloat(newSegmentEnd);
+
+    if (isNaN(startTime) || isNaN(endTime)) {
+      toast.error('Please enter valid numbers for start and end times');
+      return;
+    }
+
+    if (startTime < 0 || endTime < 0) {
+      toast.error('Times cannot be negative');
+      return;
+    }
+
+    if (startTime >= endTime) {
+      toast.error('Start time must be before end time');
+      return;
+    }
+
+    const newSegment: SegmentState = {
+      id: nextManualId,
+      startTime,
+      endTime,
+      text: '(Manually added segment)',
+      approved: true,
+      isManuallyEdited: true,
+    };
+
+    setSegmentStates(prev => [...prev, newSegment].sort((a, b) => a.startTime - b.startTime));
+    setNextManualId(prev => prev - 1);
+    setNewSegmentStart('');
+    setNewSegmentEnd('');
+    setShowAddSegment(false);
+    toast.success('Manual segment added');
+  };
+
+  const removeSegment = (segmentId: number) => {
+    setSegmentStates(prev => prev.filter(seg => seg.id !== segmentId));
+    toast.success('Segment removed');
   };
 
   const approvedCount = segmentStates.filter(seg => seg.approved).length;
@@ -267,6 +353,111 @@ export default function SegmentReviewModal({
                 </div>
               )}
 
+              {/* Full Transcript */}
+              {transcript.length > 0 && (
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-gray-900 text-left">Full Transcript ({transcript.length} segments)</h3>
+                    <button
+                      onClick={() => setShowTranscript(!showTranscript)}
+                      className="text-sm text-gray-700 hover:text-gray-900 font-medium flex items-center gap-1"
+                    >
+                      {showTranscript ? 'Hide' : 'Show'} Transcript
+                      <svg className={`w-4 h-4 transition-transform ${showTranscript ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
+                  {showTranscript && (
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {transcript.map((seg) => (
+                        <div
+                          key={seg.id}
+                          className={`p-3 rounded border ${
+                            seg.label === 'ad'
+                              ? 'bg-red-50 border-red-200'
+                              : 'bg-white border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-mono text-gray-600">
+                                {formatTime(seg.start_time)} - {formatTime(seg.end_time)}
+                              </span>
+                              {seg.label === 'ad' && (
+                                <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded font-medium">
+                                  AD
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs text-gray-500">
+                              #{seg.sequence_num}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-700 text-left">
+                            {seg.text}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Add Manual Segment */}
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-gray-900 text-left">Add Manual Segment</h3>
+                  <button
+                    onClick={() => setShowAddSegment(!showAddSegment)}
+                    className="text-sm text-blue-700 hover:text-blue-900 font-medium"
+                  >
+                    {showAddSegment ? 'Cancel' : 'Add Missed Ad'}
+                  </button>
+                </div>
+                {showAddSegment && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-700 text-left">
+                      Add segments that the LLM missed. Use the waveform or episode playback to find exact times.
+                    </p>
+                    <div className="flex items-end gap-3">
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1 text-left">
+                          Start Time (seconds)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={newSegmentStart}
+                          onChange={(e) => setNewSegmentStart(e.target.value)}
+                          placeholder="e.g., 125.5"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1 text-left">
+                          End Time (seconds)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={newSegmentEnd}
+                          onChange={(e) => setNewSegmentEnd(e.target.value)}
+                          placeholder="e.g., 185.2"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      <button
+                        onClick={addManualSegment}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                      >
+                        Add Segment
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Individual Segments */}
               <div>
                 <h3 className="font-semibold text-gray-900 mb-3 text-left">
@@ -327,8 +518,20 @@ export default function SegmentReviewModal({
 
                             {segment.isManuallyEdited && (
                               <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
-                                Edited
+                                {segment.id < 0 ? 'Manual' : 'Edited'}
                               </span>
+                            )}
+
+                            {segment.id < 0 && (
+                              <button
+                                onClick={() => removeSegment(segment.id)}
+                                className="ml-auto text-xs text-red-600 hover:text-red-800 font-medium flex items-center gap-1"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Delete
+                              </button>
                             )}
                           </div>
 
