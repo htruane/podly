@@ -1,3 +1,60 @@
+[project]
+name = "podly"
+version = "0.0.1"
+requires-python = ">=3.11, <3.14"
+dependencies = [
+    "speechrecognition",
+    "openai",
+    "python-dotenv",
+    "jinja2",
+    "flask",
+    "pyrss2gen",
+    "feedparser",
+    "certifi",
+    "cd",
+    "pyyaml",
+    "prompt-toolkit",
+    "pypodcastparser",
+    "werkzeug",
+    "exceptiongroup",
+    "zeroconf",
+    "waitress",
+    "validators",
+    "beartype",
+    "openai-whisper",
+    "flask-sqlalchemy",
+    "flask-migrate",
+    "Flask-APScheduler",
+    "ffmpeg-python",
+    "litellm",
+    "bleach",
+    "types-bleach",
+    "groq",
+    "async_timeout",
+    "pytest-cov",
+    "flask-cors",
+    "bcrypt",
+    "httpx-aiohttp",
+]
+
+[dependency-groups]
+dev = [
+    "black",
+    "mypy",
+    "types-pyyaml",
+    "types-requests",
+    "types-waitress",
+    "pylint",
+    "pytest",
+    "dill",
+    "isort",
+    "types-flask-migrate",
+    "pytest-mock",
+    "watchdog",
+    "requests",
+    "types-flask-cors",
+]
+
 [tool.pylint]
 init-hook = 'import sys; sys.path.append("./src")'
 
@@ -13,6 +70,13 @@ disable = [
     "line-too-long",
     "too-many-return-statements"
 ]
+
+[tool.uv]
+package = false
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
 
 [tool.mypy]
 warn_unused_ignores = true
