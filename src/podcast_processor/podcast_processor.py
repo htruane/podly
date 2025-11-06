@@ -258,7 +258,7 @@ class PodcastProcessor:
         post: Post,
         job: ProcessingJob,
         processed_audio_path: str,
-        cancel_callback: Optional[Callable[[], Bool]] = None,
+        cancel_callback: Optional[Callable[[], bool]] = None,
     ) -> None:
         """
         Perform the main processing steps: transcription, ad classification, and audio processing.
