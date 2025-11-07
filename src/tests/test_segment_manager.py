@@ -39,7 +39,7 @@ def test_segments() -> list:
             sequence_num=0,
             start_time=10.0,
             end_time=20.0,
-            text="This is an ad for product A"
+            text="This is an ad for product A",
         ),
         TranscriptSegment(
             id=2,
@@ -47,7 +47,7 @@ def test_segments() -> list:
             sequence_num=1,
             start_time=20.0,
             end_time=30.0,
-            text="Another ad for product A continues"
+            text="Another ad for product A continues",
         ),
         TranscriptSegment(
             id=3,
@@ -55,7 +55,7 @@ def test_segments() -> list:
             sequence_num=2,
             start_time=100.0,
             end_time=110.0,
-            text="This is a separate ad for product B"
+            text="This is a separate ad for product B",
         ),
     ]
     return segments
@@ -84,9 +84,7 @@ class TestMergeContiguousSegments:
         assert merged[1]["end_time"] == 110.0
         assert merged[1]["segment_ids"] == [3]
 
-    def test_merge_with_small_gap(
-        self, test_segment_manager: SegmentManager
-    ) -> None:
+    def test_merge_with_small_gap(self, test_segment_manager: SegmentManager) -> None:
         """Test merging segments with a small gap (within threshold)."""
         segments = [
             {"id": 1, "start_time": 10.0, "end_time": 20.0},
@@ -119,16 +117,12 @@ class TestMergeContiguousSegments:
         assert merged[0]["segment_ids"] == [1]
         assert merged[1]["segment_ids"] == [2]
 
-    def test_empty_segments(
-        self, test_segment_manager: SegmentManager
-    ) -> None:
+    def test_empty_segments(self, test_segment_manager: SegmentManager) -> None:
         """Test merging with empty segment list."""
         merged = test_segment_manager._merge_contiguous_segments([])
         assert merged == []
 
-    def test_single_segment(
-        self, test_segment_manager: SegmentManager
-    ) -> None:
+    def test_single_segment(self, test_segment_manager: SegmentManager) -> None:
         """Test merging with single segment."""
         segments = [{"id": 1, "start_time": 10.0, "end_time": 20.0}]
         merged = test_segment_manager._merge_contiguous_segments(segments)
@@ -138,9 +132,7 @@ class TestMergeContiguousSegments:
         assert merged[0]["end_time"] == 20.0
         assert merged[0]["segment_ids"] == [1]
 
-    def test_unordered_segments(
-        self, test_segment_manager: SegmentManager
-    ) -> None:
+    def test_unordered_segments(self, test_segment_manager: SegmentManager) -> None:
         """Test that unordered segments are sorted before merging."""
         segments = [
             {"id": 3, "start_time": 100.0, "end_time": 110.0},
@@ -165,6 +157,7 @@ class TestApplySegmentOverrides:
         """Test that applying overrides creates SegmentOverride records."""
         with app.app_context():
             from app.extensions import db
+
             test_segment_manager.db_session = db.session
 
             # Add test post to session
@@ -193,6 +186,7 @@ class TestApplySegmentOverrides:
         """Test that applying overrides clears existing ones."""
         with app.app_context():
             from app.extensions import db
+
             test_segment_manager.db_session = db.session
 
             # Add test post to session
@@ -229,6 +223,7 @@ class TestApplySegmentOverrides:
         """Test that only approved segments are saved."""
         with app.app_context():
             from app.extensions import db
+
             test_segment_manager.db_session = db.session
 
             # Add test post to session
@@ -268,6 +263,7 @@ class TestGetApprovedSegmentsForRemoval:
         """Test that overrides are used when present."""
         with app.app_context():
             from app.extensions import db
+
             test_segment_manager.db_session = db.session
 
             # Add test post to session
@@ -315,6 +311,7 @@ class TestGetApprovedSegmentsForRemoval:
         """Test that LLM identifications are used when no overrides exist."""
         with app.app_context():
             from app.extensions import db
+
             test_segment_manager.db_session = db.session
 
             # Add test post to session

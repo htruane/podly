@@ -153,8 +153,9 @@ def test_call_model_retry_on_internal_error(test_config: Config, app: Flask) -> 
         ]
 
         # Patch time.sleep to avoid waiting during tests
-        with patch("time.sleep"), patch(
-            "litellm.completion", side_effect=mock_completion_side_effects
+        with (
+            patch("time.sleep"),
+            patch("litellm.completion", side_effect=mock_completion_side_effects),
         ):
             response = classifier._call_model(
                 model_call_obj=dummy_model_call,

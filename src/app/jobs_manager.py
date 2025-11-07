@@ -232,7 +232,9 @@ class JobsManager:
             rows = (
                 _db.session.query(ProcessingJob, Post, priority_order)
                 .outerjoin(Post, ProcessingJob.post_guid == Post.guid)
-                .filter(ProcessingJob.status.in_(["pending", "running", "pending_review"]))
+                .filter(
+                    ProcessingJob.status.in_(["pending", "running", "pending_review"])
+                )
                 .order_by(priority_order.desc(), ProcessingJob.created_at.desc())
                 .limit(limit)
                 .all()

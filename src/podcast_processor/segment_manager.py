@@ -19,7 +19,9 @@ class SegmentManager:
     """
 
     def __init__(
-        self, db_session: Union[Session, scoped_session], config: Optional[object] = None
+        self,
+        db_session: Union[Session, scoped_session],
+        config: Optional[object] = None,
     ):
         self.db_session = db_session
         self.config = config
@@ -40,15 +42,17 @@ class SegmentManager:
 
         segments_data = []
         for segment in ad_segments:
-            segments_data.append({
-                "id": segment["id"],
-                "start_time": segment["start_time"],
-                "end_time": segment["end_time"],
-                "text": segment["text"],
-                "label": "ad",
-                "confidence": segment["confidence"],
-                "sequence_num": segment["sequence_num"],
-            })
+            segments_data.append(
+                {
+                    "id": segment["id"],
+                    "start_time": segment["start_time"],
+                    "end_time": segment["end_time"],
+                    "text": segment["text"],
+                    "label": "ad",
+                    "confidence": segment["confidence"],
+                    "sequence_num": segment["sequence_num"],
+                }
+            )
 
         return {
             "segments": segments_data,
@@ -64,12 +68,8 @@ class SegmentManager:
             List of dictionaries with segment information
         """
         ad_identifications = (
-            Identification.query
-            .join(TranscriptSegment)
-            .filter(
-                TranscriptSegment.post_id == post.id,
-                Identification.label == "ad"
-            )
+            Identification.query.join(TranscriptSegment)
+            .filter(TranscriptSegment.post_id == post.id, Identification.label == "ad")
             .order_by(TranscriptSegment.sequence_num)
             .all()
         )
@@ -83,14 +83,16 @@ class SegmentManager:
                 continue
             seen_segment_ids.add(segment.id)
 
-            segments.append({
-                "id": segment.id,
-                "sequence_num": segment.sequence_num,
-                "start_time": segment.start_time,
-                "end_time": segment.end_time,
-                "text": segment.text,
-                "confidence": ident.confidence,
-            })
+            segments.append(
+                {
+                    "id": segment.id,
+                    "sequence_num": segment.sequence_num,
+                    "start_time": segment.start_time,
+                    "end_time": segment.end_time,
+                    "text": segment.text,
+                    "confidence": ident.confidence,
+                }
+            )
 
         return segments
 
@@ -102,36 +104,33 @@ class SegmentManager:
             List of all transcript segments with labels
         """
         transcript_segments = (
-            TranscriptSegment.query
-            .filter(TranscriptSegment.post_id == post.id)
+            TranscriptSegment.query.filter(TranscriptSegment.post_id == post.id)
             .order_by(TranscriptSegment.sequence_num)
             .all()
         )
 
         result = []
         for segment in transcript_segments:
-            identification = (
-                Identification.query
-                .filter(Identification.transcript_segment_id == segment.id)
-                .first()
-            )
+            identification = Identification.query.filter(
+                Identification.transcript_segment_id == segment.id
+            ).first()
 
-            result.append({
-                "id": segment.id,
-                "sequence_num": segment.sequence_num,
-                "start_time": segment.start_time,
-                "end_time": segment.end_time,
-                "text": segment.text,
-                "label": identification.label if identification else "unknown",
-                "confidence": identification.confidence if identification else 0.0,
-            })
+            result.append(
+                {
+                    "id": segment.id,
+                    "sequence_num": segment.sequence_num,
+                    "start_time": segment.start_time,
+                    "end_time": segment.end_time,
+                    "text": segment.text,
+                    "label": identification.label if identification else "unknown",
+                    "confidence": identification.confidence if identification else 0.0,
+                }
+            )
 
         return result
 
     def _merge_contiguous_segments(
-        self,
-        segments: List[Dict],
-        max_gap_seconds: float = 5.0
+        self, segments: List[Dict], max_gap_seconds: float = 5.0
     ) -> List[Dict]:
         """
         Merge contiguous ad segments into ranges.
@@ -171,11 +170,7 @@ class SegmentManager:
         merged_ranges.append(current_range)
         return merged_ranges
 
-    def apply_segment_overrides(
-        self,
-        post: Post,
-        overrides: List[Dict]
-    ) -> None:
+    def apply_segment_overrides(self, post: Post, overrides: List[Dict]) -> None:
         """
         Apply user overrides for segments and save to database.
 
@@ -217,12 +212,13 @@ class SegmentManager:
             List of segment dictionaries with start_time and end_time
         """
         overrides = SegmentOverride.query.filter_by(
-            post_id=post.id,
-            user_approved=True
+            post_id=post.id, user_approved=True
         ).all()
 
         if overrides:
-            logger.info(f"Using {len(overrides)} user-approved segments for post {post.guid}")
+            logger.info(
+                f"Using {len(overrides)} user-approved segments for post {post.guid}"
+            )
             return [
                 {
                     "start_time": override.start_time,
@@ -232,7 +228,9 @@ class SegmentManager:
             ]
 
         # Fall back to LLM identifications
-        logger.info(f"No overrides found, using LLM identifications for post {post.guid}")
+        logger.info(
+            f"No overrides found, using LLM identifications for post {post.guid}"
+        )
         ad_segments = self._get_ad_segments_from_db(post)
         merged_ranges = self._merge_contiguous_segments(ad_segments)
 

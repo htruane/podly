@@ -225,7 +225,9 @@ class SegmentOverride(db.Model):  # type: ignore[name-defined, misc]
     user_approved = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
-    post = db.relationship("Post", backref=db.backref("segment_overrides", lazy="dynamic"))
+    post = db.relationship(
+        "Post", backref=db.backref("segment_overrides", lazy="dynamic")
+    )
 
     def __repr__(self) -> str:
         return f"<SegmentOverride {self.id} Post:{self.post_id} Time:{self.start_time:.1f}-{self.end_time:.1f} Approved:{self.user_approved}>"

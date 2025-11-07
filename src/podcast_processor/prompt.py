@@ -10,7 +10,6 @@ DEFAULT_USER_PROMPT_TEMPLATE_PATH = "src/user_prompt.jinja"
 def transcript_excerpt_for_prompt(
     segments: List[Segment], includes_start: bool, includes_end: bool
 ) -> str:
-
     excerpts = [f"[{segment.start}] {segment.text}" for segment in segments]
     if includes_start:
         excerpts.insert(0, "[TRANSCRIPT START]")

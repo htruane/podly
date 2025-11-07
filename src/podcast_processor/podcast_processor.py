@@ -68,22 +68,40 @@ class PodcastProcessor:
         downloader: Optional[PodcastDownloader] = None,
     ) -> None:
         super().__init__()
-        self.logger = logger if logger is not None else logging.getLogger("global_logger")
+        self.logger = (
+            logger if logger is not None else logging.getLogger("global_logger")
+        )
         self.output_dir = str(get_srv_root())
         self.config: Config = config
         self.db_session = db_session if db_session is not None else db.session
 
-        self.downloader = downloader if downloader is not None else PodcastDownloader(logger=self.logger)
-        self.status_manager = status_manager if status_manager is not None else ProcessingStatusManager(
-            self.db_session, self.logger
+        self.downloader = (
+            downloader
+            if downloader is not None
+            else PodcastDownloader(logger=self.logger)
+        )
+        self.status_manager = (
+            status_manager
+            if status_manager is not None
+            else ProcessingStatusManager(self.db_session, self.logger)
         )
 
         litellm.api_base = self.config.openai_base_url
         litellm.api_key = self.config.llm_api_key
 
-        self.transcription_manager = transcription_manager if transcription_manager is not None else TranscriptionManager(self.logger, config)
-        self.ad_classifier = ad_classifier if ad_classifier is not None else AdClassifier(config)
-        self.audio_processor = audio_processor if audio_processor is not None else AudioProcessor(config=config, logger=self.logger)
+        self.transcription_manager = (
+            transcription_manager
+            if transcription_manager is not None
+            else TranscriptionManager(self.logger, config)
+        )
+        self.ad_classifier = (
+            ad_classifier if ad_classifier is not None else AdClassifier(config)
+        )
+        self.audio_processor = (
+            audio_processor
+            if audio_processor is not None
+            else AudioProcessor(config=config, logger=self.logger)
+        )
 
     def process(
         self,
@@ -158,7 +176,7 @@ class PodcastProcessor:
                         except Exception as e:
                             self.logger.error(
                                 f"Failed to release lock for {cached_lock_key}: {e}",
-                                exc_info=True
+                                exc_info=True,
                             )
                             raise
 

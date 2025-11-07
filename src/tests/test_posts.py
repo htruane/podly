@@ -43,6 +43,6 @@ class TestPostsFunctions:
             mock_unlink.assert_not_called()
 
             # Verify debug logging for skipped files
-            assert (
-                mock_logger.debug.call_count >= 2
-            ), f"Debug was called {mock_logger.debug.call_count} times"
+            assert mock_logger.debug.call_count >= 2, (
+                f"Debug was called {mock_logger.debug.call_count} times"
+            )

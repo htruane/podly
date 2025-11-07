@@ -2,7 +2,13 @@ import logging
 from typing import Any, List, Optional, Tuple
 
 from app.extensions import db
-from app.models import Identification, ModelCall, Post, SegmentOverride, TranscriptSegment
+from app.models import (
+    Identification,
+    ModelCall,
+    Post,
+    SegmentOverride,
+    TranscriptSegment,
+)
 from podcast_processor.audio import clip_segments_with_fade, get_audio_duration_ms
 from shared.config import Config
 
@@ -43,8 +49,7 @@ class AudioProcessor:
 
         # Check for user-approved segment overrides first
         segment_overrides = SegmentOverride.query.filter_by(
-            post_id=post.id,
-            user_approved=True
+            post_id=post.id, user_approved=True
         ).all()
 
         if segment_overrides:
@@ -59,7 +64,9 @@ class AudioProcessor:
             return ad_segments_times
 
         # Fall back to LLM identifications
-        self.logger.info(f"No overrides found, using LLM identifications for post {post.id}.")
+        self.logger.info(
+            f"No overrides found, using LLM identifications for post {post.id}."
+        )
 
         ad_identifications = (
             self.identification_query.join(

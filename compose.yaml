@@ -1,0 +1,52 @@
+services:
+  podly:
+    container_name: podly
+    env_file:
+      - ./.env.local
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - CUDA_VISIBLE_DEVICES=0
+      - CORS_ORIGINS=*
+      - SERVER_THREADS=${SERVER_THREADS:-1}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    runtime: nvidia
+    gpus: all
+    volumes:
+      - ./src/instance:/app/src/instance
+    image: $IMAGE_REGISTRY/$IMAGE_REPOSITORY:$IMAGE_TAG
+    pull_policy: build
+    build:
+      pull: true
+      args:
+        - CUDA_VERSION=${CUDA_VERSION:-13.0}
+        - USE_GPU_NVIDIA=${USE_GPU_NVIDIA:-true}
+        - USE_GPU_AMD=${USE_GPU_AMD:-false}
+        - LITE_BUILD=${LITE_BUILD:-false}
+    ports:
+      - "5001:5001"
+    restart: unless-stopped
+    networks:
+      - default-external
+  oauth2-podly:
+    image: quay.io/oauth2-proxy/oauth2-proxy:latest
+    container_name: oa2-podly
+    restart: unless-stopped
+    command: [  "--config", "/oauth2-proxy.cfg",
+                "--client-id", "$OA2_CLIENT_ID", 
+                "--client-secret", "$OA2_CLIENT_SECRET", 
+                "--upstream", "http://podly:5001", 
+                "--http-address", "0.0.0.0:5001", ]
+    volumes:
+      - "./oauth2-proxy.cfg:/oauth2-proxy.cfg"
+    networks:
+      - default-external
+networks:
+  default-external:
+    external: true

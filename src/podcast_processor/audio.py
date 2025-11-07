@@ -24,7 +24,6 @@ def clip_segments_with_fade(
     in_path: str,
     out_path: str,
 ) -> None:
-
     audio_duration_ms = get_audio_duration_ms(in_path)
     assert audio_duration_ms is not None
 
@@ -88,7 +87,6 @@ def split_audio(
     audio_chunk_path: Path,
     chunk_size_bytes: int,
 ) -> List[Tuple[Path, int]]:
-
     audio_chunk_path.mkdir(parents=True, exist_ok=True)
 
     duration_ms = get_audio_duration_ms(str(audio_file_path))

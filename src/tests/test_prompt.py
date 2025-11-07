@@ -2,7 +2,6 @@ from podcast_processor.prompt import DEFAULT_SYSTEM_PROMPT_PATH, generate_system
 
 
 def test_prompt_expected_output_match() -> None:
-
     with open(DEFAULT_SYSTEM_PROMPT_PATH, "r") as f:
         system_prompt = f.read()
 

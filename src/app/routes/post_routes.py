@@ -581,7 +581,10 @@ def api_get_original_post_audio(p_guid: str) -> ResponseReturnValue:
             403,
         )
 
-    if not post.unprocessed_audio_path or not Path(post.unprocessed_audio_path).exists():
+    if (
+        not post.unprocessed_audio_path
+        or not Path(post.unprocessed_audio_path).exists()
+    ):
         logger.warning(f"Original audio not found for post: {post.id}")
         return flask.make_response(
             jsonify(
