@@ -1,0 +1,5 @@
+model_pattern,input_cost_per_million,output_cost_per_million
+glm-4.5-air,0.2,1.1
+glm-4-5-air,0.2,1.1
+glm-4.6,0.6,2.2
+glm-4-6,0.6,2.2

@@ -119,11 +119,11 @@ Download → Transcribe → Classify → Review → Edit Audio → Done
    - **Optional tuning**: If false negatives occur, increase `num_segments_to_input_to_prompt` or `max_overlap_segments`
 
    See [src/podcast_processor/ad_classifier.py](src/podcast_processor/ad_classifier.py) for implementation details
-6. ~~**Bug**: LiteLLM model mapping error for glm-4.5-air and glm-4.6~~ **RESOLVED**
-   - Added custom pricing configuration in [ad_classifier.py:552-570](src/podcast_processor/ad_classifier.py#L552-L570)
-   - GLM-4.5-Air: $0.2/1M input, $1.1/1M output tokens
-   - GLM-4.6: $0.6/1M input, $2.2/1M output tokens
+6. ~~**Bug**: LiteLLM model mapping error for unmapped models~~ **RESOLVED**
+   - Custom pricing loaded from [model_pricing.csv](model_pricing.csv)
+   - Implementation: [model_pricing.py](src/podcast_processor/model_pricing.py), [ad_classifier.py:553-565](src/podcast_processor/ad_classifier.py#L553-L565)
    - Tests: [test_glm_custom_pricing.py](src/tests/test_glm_custom_pricing.py)
+   - Documentation: [MODEL_PRICING.md](MODEL_PRICING.md)
 
 ## Technical Considerations
 

@@ -21,6 +21,7 @@ from podcast_processor.model_output import (
     AdSegmentPredictionList,
     clean_and_parse_model_output,
 )
+from podcast_processor.model_pricing import get_pricing_config
 from podcast_processor.prompt import transcript_excerpt_for_prompt
 from podcast_processor.token_rate_limiter import (
     TokenRateLimiter,
@@ -551,22 +552,16 @@ class AdClassifier:
 
         # Add custom pricing for models not in LiteLLM's pricing database
         # Prevents "This model isn't mapped yet" errors
-        model_name_lower = model_call_obj.model_name.lower()
-        if "glm-4.5-air" in model_name_lower or "glm-4-5-air" in model_name_lower:
-            # GLM-4.5-Air official pricing: $0.2/1M input, $1.1/1M output tokens
-            completion_args["input_cost_per_token"] = 0.0000002
-            completion_args["output_cost_per_token"] = 0.0000011
+        # Pricing loaded from model_pricing.csv in project root
+        pricing_config = get_pricing_config()
+        pricing = pricing_config.get_pricing(model_call_obj.model_name)
+        if pricing:
+            input_cost, output_cost = pricing
+            completion_args["input_cost_per_token"] = input_cost
+            completion_args["output_cost_per_token"] = output_cost
             self.logger.info(
-                f"Applied custom pricing for glm-4.5-air model: "
-                f"input=$0.0000002, output=$0.0000011 per token"
-            )
-        elif "glm-4.6" in model_name_lower or "glm-4-6" in model_name_lower:
-            # GLM-4.6 official pricing: $0.6/1M input, $2.2/1M output tokens
-            completion_args["input_cost_per_token"] = 0.0000006
-            completion_args["output_cost_per_token"] = 0.0000022
-            self.logger.info(
-                f"Applied custom pricing for glm-4.6 model: "
-                f"input=$0.0000006, output=$0.0000022 per token"
+                f"Applied custom pricing for {model_call_obj.model_name}: "
+                f"input=${input_cost:.10f}, output=${output_cost:.10f} per token"
             )
 
         # Use max_completion_tokens for newer OpenAI models (o1, gpt-5, gpt-4o variants)

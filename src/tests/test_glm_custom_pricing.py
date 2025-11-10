@@ -58,8 +58,8 @@ def test_glm_4_5_air_custom_pricing(test_config: Config, app: Flask) -> None:
             assert completion_args is not None
             assert "input_cost_per_token" in completion_args
             assert "output_cost_per_token" in completion_args
-            assert completion_args["input_cost_per_token"] == 0.0000002
-            assert completion_args["output_cost_per_token"] == 0.0000011
+            assert completion_args["input_cost_per_token"] == pytest.approx(0.0000002)
+            assert completion_args["output_cost_per_token"] == pytest.approx(0.0000011)
 
 
 def test_glm_4_6_custom_pricing(test_config: Config, app: Flask) -> None:
@@ -92,8 +92,8 @@ def test_glm_4_6_custom_pricing(test_config: Config, app: Flask) -> None:
             assert completion_args is not None
             assert "input_cost_per_token" in completion_args
             assert "output_cost_per_token" in completion_args
-            assert completion_args["input_cost_per_token"] == 0.0000006
-            assert completion_args["output_cost_per_token"] == 0.0000022
+            assert completion_args["input_cost_per_token"] == pytest.approx(0.0000006)
+            assert completion_args["output_cost_per_token"] == pytest.approx(0.0000022)
 
 
 def test_non_glm_model_no_custom_pricing(test_config: Config, app: Flask) -> None:
