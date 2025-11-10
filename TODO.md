@@ -123,7 +123,6 @@ Download → Transcribe → Classify → Review → Edit Audio → Done
    - Custom pricing loaded from [src/model_pricing.csv](src/model_pricing.csv)
    - Implementation: [model_pricing.py](src/podcast_processor/model_pricing.py), [ad_classifier.py:553-565](src/podcast_processor/ad_classifier.py#L553-L565)
    - Tests: [test_glm_custom_pricing.py](src/tests/test_glm_custom_pricing.py)
-   - Documentation: [MODEL_PRICING.md](MODEL_PRICING.md)
 
 ## Technical Considerations
 

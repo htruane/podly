@@ -37,7 +37,9 @@ class ModelPricingConfig:
 
         try:
             with open(self.csv_path, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
+                # Filter out comment lines
+                lines = [line for line in f if not line.strip().startswith("#")]
+                reader = csv.DictReader(lines)
                 for row in reader:
                     model_pattern = row["model_pattern"].strip().lower()
                     input_cost = float(row["input_cost_per_million"])
