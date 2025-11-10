@@ -560,6 +560,14 @@ class AdClassifier:
                 f"Applied custom pricing for glm-4.5-air model: "
                 f"input=$0.0000002, output=$0.0000011 per token"
             )
+        elif "glm-4.6" in model_name_lower or "glm-4-6" in model_name_lower:
+            # GLM-4.6 official pricing: $0.6/1M input, $2.2/1M output tokens
+            completion_args["input_cost_per_token"] = 0.0000006
+            completion_args["output_cost_per_token"] = 0.0000022
+            self.logger.info(
+                f"Applied custom pricing for glm-4.6 model: "
+                f"input=$0.0000006, output=$0.0000022 per token"
+            )
 
         # Use max_completion_tokens for newer OpenAI models (o1, gpt-5, gpt-4o variants)
         # OpenAI deprecated max_tokens for these models in favor of max_completion_tokens

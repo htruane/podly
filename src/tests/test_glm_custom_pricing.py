@@ -62,6 +62,40 @@ def test_glm_4_5_air_custom_pricing(test_config: Config, app: Flask) -> None:
             assert completion_args["output_cost_per_token"] == 0.0000011
 
 
+def test_glm_4_6_custom_pricing(test_config: Config, app: Flask) -> None:
+    """Test that glm-4.6 model gets custom pricing configuration."""
+    with app.app_context():
+        classifier = AdClassifier(config=test_config)
+
+        # Test various glm-4.6 model name formats
+        test_models = [
+            "glm-4.6",
+            "GLM-4.6",
+            "zhipu/glm-4.6",
+            "glm-4-6",
+        ]
+
+        for model_name in test_models:
+            model_call = ModelCall(
+                post_id=1,
+                model_name=model_name,
+                prompt="test prompt",
+                first_segment_sequence_num=0,
+                last_segment_sequence_num=0,
+                status="pending",
+            )
+
+            completion_args = classifier._prepare_api_call(
+                model_call, "test system prompt"
+            )
+
+            assert completion_args is not None
+            assert "input_cost_per_token" in completion_args
+            assert "output_cost_per_token" in completion_args
+            assert completion_args["input_cost_per_token"] == 0.0000006
+            assert completion_args["output_cost_per_token"] == 0.0000022
+
+
 def test_non_glm_model_no_custom_pricing(test_config: Config, app: Flask) -> None:
     """Test that non-glm models do not get custom pricing parameters."""
     with app.app_context():
