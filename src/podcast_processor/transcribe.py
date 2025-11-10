@@ -85,6 +85,7 @@ class LocalWhisperTranscriber(Transcriber):
     def transcribe(self, audio_file_path: str) -> List[Segment]:
         # Import whisper only when needed to avoid CUDA dependencies during module import
         try:
+            import torch
             import whisper  # type: ignore[import-untyped]
         except ImportError as e:
             self.logger.error(f"Failed to import whisper: {e}")
@@ -92,15 +93,28 @@ class LocalWhisperTranscriber(Transcriber):
                 "whisper library is required for LocalWhisperTranscriber"
             ) from e
 
-        self.logger.info("Using local whisper")
+        if torch.cuda.is_available():
+            device = "cuda"
+            use_fp16 = True
+        elif torch.backends.mps.is_available():
+            device = "mps"
+            use_fp16 = True
+        else:
+            device = "cpu"
+            use_fp16 = False
+
+        self.logger.info(f"Using local whisper on device: {device} (fp16: {use_fp16})")
+
         models = whisper.available_models()
         self.logger.info(f"Available models: {models}")
 
-        model = whisper.load_model(name=self.whisper_model)
+        model = whisper.load_model(name=self.whisper_model, device=device)
 
         self.logger.info("Beginning transcription")
         start = time.time()
-        result = model.transcribe(audio_file_path, fp16=False, language="English")
+        result = model.transcribe(
+            audio_file_path, fp16=use_fp16, language="English"
+        )
         end = time.time()
         elapsed = end - start
         self.logger.info(f"Transcription completed in {elapsed}")
