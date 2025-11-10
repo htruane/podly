@@ -19,8 +19,8 @@ class ModelPricingConfig:
             csv_path: Path to CSV file. If None, uses default location.
         """
         if csv_path is None:
-            # Default to model_pricing.csv in project root
-            csv_path = Path(__file__).parent.parent.parent / "model_pricing.csv"
+            # Default to model_pricing.csv in src directory
+            csv_path = Path(__file__).parent.parent / "model_pricing.csv"
 
         self.csv_path = csv_path
         self._pricing_cache: Dict[str, Tuple[float, float]] = {}

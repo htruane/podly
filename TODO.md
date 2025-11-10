@@ -120,7 +120,7 @@ Download → Transcribe → Classify → Review → Edit Audio → Done
 
    See [src/podcast_processor/ad_classifier.py](src/podcast_processor/ad_classifier.py) for implementation details
 6. ~~**Bug**: LiteLLM model mapping error for unmapped models~~ **RESOLVED**
-   - Custom pricing loaded from [model_pricing.csv](model_pricing.csv)
+   - Custom pricing loaded from [src/model_pricing.csv](src/model_pricing.csv)
    - Implementation: [model_pricing.py](src/podcast_processor/model_pricing.py), [ad_classifier.py:553-565](src/podcast_processor/ad_classifier.py#L553-L565)
    - Tests: [test_glm_custom_pricing.py](src/tests/test_glm_custom_pricing.py)
    - Documentation: [MODEL_PRICING.md](MODEL_PRICING.md)

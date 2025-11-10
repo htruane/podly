@@ -4,7 +4,7 @@ Custom pricing configuration for LLM models not included in LiteLLM's default pr
 
 ## Configuration File
 
-Model pricing is configured in `model_pricing.csv` in the project root:
+Model pricing is configured in `src/model_pricing.csv`:
 
 ```csv
 model_pattern,input_cost_per_million,output_cost_per_million
@@ -30,7 +30,7 @@ The system performs case-insensitive substring matching. For example:
 
 To add pricing for a new model:
 
-1. Edit `model_pricing.csv`
+1. Edit `src/model_pricing.csv`
 2. Add a new row with the model pattern and costs
 3. Restart the application to reload the configuration
 
@@ -43,7 +43,7 @@ my-custom-model,0.5,1.5
 
 When model pricing changes:
 
-1. Update the costs in `model_pricing.csv`
+1. Update the costs in `src/model_pricing.csv`
 2. Restart the application
 
 No code changes are required.
