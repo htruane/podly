@@ -9,6 +9,7 @@ from app.models import (
     SegmentOverride,
     TranscriptSegment,
 )
+from podcast_processor.cache_utils import invalidate_cache, ttl_cache
 
 logger = logging.getLogger("global_logger")
 
@@ -26,6 +27,7 @@ class SegmentManager:
         self.db_session = db_session
         self.config = config
 
+    @ttl_cache(ttl_seconds=300)
     def get_identified_segments(self, post: Post) -> Dict:
         """
         Get all identified ad segments for a post, including merged ranges and full transcript.
@@ -109,11 +111,18 @@ class SegmentManager:
             .all()
         )
 
+        segment_ids = [segment.id for segment in transcript_segments]
+        identifications = (
+            Identification.query.filter(
+                Identification.transcript_segment_id.in_(segment_ids)
+            ).all()
+        )
+
+        identification_map = {ident.transcript_segment_id: ident for ident in identifications}
+
         result = []
         for segment in transcript_segments:
-            identification = Identification.query.filter(
-                Identification.transcript_segment_id == segment.id
-            ).first()
+            identification = identification_map.get(segment.id)
 
             result.append(
                 {
@@ -200,6 +209,20 @@ class SegmentManager:
         self.db_session.commit()
         logger.info(f"Applied {len(overrides)} segment overrides for post {post.guid}")
 
+        self._invalidate_post_cache(post)
+
+    def _invalidate_post_cache(self, post: Post) -> None:
+        """
+        Invalidate cached data for a specific post.
+
+        Args:
+            post: The Post object whose cache should be invalidated
+        """
+        invalidate_cache("get_identified_segments", self, post)
+        invalidate_cache("get_approved_segments_for_removal", self, post)
+        logger.info(f"Invalidated cache for post {post.guid}")
+
+    @ttl_cache(ttl_seconds=300)
     def get_approved_segments_for_removal(self, post: Post) -> List[Dict]:
         """
         Get all approved segments that should be removed from audio.

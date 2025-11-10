@@ -59,23 +59,6 @@ Dependencies installed, waveform component created, and integrated into review m
 - [src/podcast_processor/segment_manager.py](src/podcast_processor/segment_manager.py) - Full transcript support
 - [frontend/src/components/SegmentReviewModal.tsx](frontend/src/components/SegmentReviewModal.tsx) - Manual segments and transcript viewer
 
-## Phase 5: Testing & Polish ⚠️ PARTIALLY COMPLETED
-
-### Testing
-- [x] Unit tests for SegmentManager methods
-- [ ] Integration tests for review workflow
-- [x] Test segment merging edge cases
-- [ ] Test with various podcast types
-
-### Polish
-- [ ] Mobile-friendly review UI
-- [x] Loading states and error handling
-- [x] Keyboard shortcuts for review modal
-- [ ] Preview audio playback before approval
-
-**Files:**
-- [src/tests/test_segment_manager.py](src/tests/test_segment_manager.py) - Unit tests
-
 ## Complete Feature Set
 
 Users can now:
@@ -101,32 +84,23 @@ Download → Transcribe → Classify → Review → Edit Audio → Done
 
 1. **Testing**: Integration tests for review workflow
 2. **Testing**: Test with various podcast types in production
-3. **Polish**: Mobile-responsive review UI
-4. **Enhancement**: Preview audio playback before approval
-5. **Analysis Complete**: Transcript chunking for LLM ad detection
-   - **Status**: System is properly configured, not a bug
-   - **Current behavior**:
-     - Whisper creates variable-length segments (speech-based natural boundaries)
-     - AdClassifier chunks 60 segments per LLM call (configurable via `num_segments_to_input_to_prompt`)
-     - Overlap system carries forward identified ad segments to next chunk for context
-     - Token limiting prevents oversized prompts
-   - **Why this works**:
-     - 60 Whisper segments typically = 5-10 minutes of transcript context
-     - Ad breaks are 15-120 seconds, well within single chunk size
-     - Overlap mechanism ensures ads spanning chunk boundaries are caught
-     - System prompt includes example showing multi-segment ads
-   - **No action needed**: Current chunking strategy provides sufficient context
-   - **Optional tuning**: If false negatives occur, increase `num_segments_to_input_to_prompt` or `max_overlap_segments`
-
-   See [src/podcast_processor/ad_classifier.py](src/podcast_processor/ad_classifier.py) for implementation details
-6. ~~**Bug**: LiteLLM model mapping error for unmapped models~~ **RESOLVED**
-   - Custom pricing loaded from [src/model_pricing.csv](src/model_pricing.csv)
-   - Implementation: [model_pricing.py](src/podcast_processor/model_pricing.py), [ad_classifier.py:553-565](src/podcast_processor/ad_classifier.py#L553-L565)
-   - Tests: [test_glm_custom_pricing.py](src/tests/test_glm_custom_pricing.py)
+3. **Testing**: Fix test database schema issue
+   - 6/12 tests in [test_segment_manager.py](src/tests/test_segment_manager.py) fail with "no such column: post.segments_approved"
+   - Issue: ProcessingJob table missing `segments_approved` column in test database
+   - All models imported in [conftest.py](src/tests/conftest.py), but `db.create_all()` not creating all columns
+   - Passing tests: `test_merge_contiguous_segments_*` (don't use database)
+   - Failing tests: `test_apply_overrides_*`, `test_uses_overrides_*`, `test_falls_back_*`, `test_returns_segments_*`
+   - Note: Beartype mock issue already resolved (added `spec=Session` to mock_db_session)
+4. **Polish**: Mobile-responsive review UI
+5. **Enhancement**: Preview audio playback before approval
 
 ## Technical Considerations
 
-- Segment data fetched on-demand, could be cached
+- ~~Segment data fetched on-demand, could be cached~~ ✅ **IMPLEMENTED**
+  - Added TTL-based caching (5min default) for segment data
+  - Fixed N+1 query in _get_all_transcript_segments (now uses single query with IN clause)
+  - Automatic cache invalidation on segment updates
+  - New file: [src/podcast_processor/cache_utils.py](src/podcast_processor/cache_utils.py)
 - Waveform generation is client-side (CPU intensive for long episodes)
 - Mobile UX may benefit from simplified list view
 - Consider websocket for real-time status updates during review

@@ -12,7 +12,8 @@ import pytest
 from flask import Flask
 
 from app.extensions import db
-from app.models import ProcessingJob, TranscriptSegment
+import app.models  # Import all models to register them with SQLAlchemy
+from app.models import Post, ProcessingJob, SegmentOverride, TranscriptSegment
 from podcast_processor.ad_classifier import AdClassifier
 from podcast_processor.audio_processor import AudioProcessor
 from podcast_processor.podcast_downloader import PodcastDownloader
@@ -68,7 +69,9 @@ def test_logger() -> logging.Logger:
 @pytest.fixture
 def mock_db_session() -> MagicMock:
     """Create a mock database session"""
-    mock_session = MagicMock()
+    from sqlalchemy.orm import Session
+
+    mock_session = MagicMock(spec=Session)
     mock_session.add = MagicMock()
     mock_session.add_all = MagicMock()
     mock_session.commit = MagicMock()
