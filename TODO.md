@@ -103,17 +103,26 @@ Download → Transcribe → Classify → Review → Edit Audio → Done
 2. **Testing**: Test with various podcast types in production
 3. **Polish**: Mobile-responsive review UI
 4. **Enhancement**: Preview audio playback before approval
-5. **Bug**: Transcript segments chunked too short for LLM ad detection
-   - Current chunking strategy may be creating segments that are too short
-   - LLM needs sufficient context to accurately identify advertisements
-   - Need to investigate optimal chunk size and overlap for ad detection
-   - May need to adjust transcription segmentation or classification windowing
-6. **Bug**: LiteLLM model mapping error for glm-4.5-air
-   - Error: "This model isn't mapped yet" for glm-4.5-air model
-   - LiteLLM cannot calculate costs for this model
-   - Need to either add model to litellm model_prices_and_context_window.json
-   - Or configure custom pricing in application config
-   - See: [LiteLLM model pricing](https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json)
+5. **Analysis Complete**: Transcript chunking for LLM ad detection
+   - **Status**: System is properly configured, not a bug
+   - **Current behavior**:
+     - Whisper creates variable-length segments (speech-based natural boundaries)
+     - AdClassifier chunks 60 segments per LLM call (configurable via `num_segments_to_input_to_prompt`)
+     - Overlap system carries forward identified ad segments to next chunk for context
+     - Token limiting prevents oversized prompts
+   - **Why this works**:
+     - 60 Whisper segments typically = 5-10 minutes of transcript context
+     - Ad breaks are 15-120 seconds, well within single chunk size
+     - Overlap mechanism ensures ads spanning chunk boundaries are caught
+     - System prompt includes example showing multi-segment ads
+   - **No action needed**: Current chunking strategy provides sufficient context
+   - **Optional tuning**: If false negatives occur, increase `num_segments_to_input_to_prompt` or `max_overlap_segments`
+
+   See [src/podcast_processor/ad_classifier.py](src/podcast_processor/ad_classifier.py) for implementation details
+6. ~~**Bug**: LiteLLM model mapping error for glm-4.5-air~~ **RESOLVED**
+   - Added custom pricing configuration in [ad_classifier.py:552-562](src/podcast_processor/ad_classifier.py#L552-L562)
+   - Pricing: $0.2/1M input tokens, $1.1/1M output tokens
+   - Tests: [test_glm_custom_pricing.py](src/tests/test_glm_custom_pricing.py)
 
 ## Technical Considerations
 

@@ -549,6 +549,18 @@ class AdClassifier:
             "timeout": self.config.openai_timeout,
         }
 
+        # Add custom pricing for models not in LiteLLM's pricing database
+        # Prevents "This model isn't mapped yet" errors
+        model_name_lower = model_call_obj.model_name.lower()
+        if "glm-4.5-air" in model_name_lower or "glm-4-5-air" in model_name_lower:
+            # GLM-4.5-Air official pricing: $0.2/1M input, $1.1/1M output tokens
+            completion_args["input_cost_per_token"] = 0.0000002
+            completion_args["output_cost_per_token"] = 0.0000011
+            self.logger.info(
+                f"Applied custom pricing for glm-4.5-air model: "
+                f"input=$0.0000002, output=$0.0000011 per token"
+            )
+
         # Use max_completion_tokens for newer OpenAI models (o1, gpt-5, gpt-4o variants)
         # OpenAI deprecated max_tokens for these models in favor of max_completion_tokens
         # Check if this is a model that requires max_completion_tokens
